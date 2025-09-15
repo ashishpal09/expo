@@ -75,6 +75,9 @@ jobs:
     name: job-1-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' && (github.base_ref == 'master' || github.base_ref == 'pre-release') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && github.ref == 'refs/heads/pre-release')
     steps:
       - uses: actions/checkout@v4
   
