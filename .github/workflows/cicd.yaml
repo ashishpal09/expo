@@ -1,13 +1,12 @@
 name: CI-CD
 
-
 on:
   push:
     branches:
       - dev
       - pre-release
       - main
-      - master
+      - ASIT-485
     tags:
       - '*'
   pull_request:
@@ -25,19 +24,6 @@ on:
         options:
           - dev
           - pre-release
-      job_group:
-        description: 'Which manual checks to run'
-        required: true
-        type: choice
-        options:
-          - none
-          - frontend
-          - sonar
-          - h2
-          - mysql
-          - mssql
-          - oracle
-          - postgres
 
 ##############################################################################################################
 ### Setup Environment
@@ -72,8 +58,8 @@ jobs:
           echo "ENV_NAME=$ENV_NAME"
           echo "ENV_NAME=$ENV_NAME" >> $GITHUB_OUTPUT
 
-  job-1:
-    name: job-1-${{ needs.set-environment.outputs.ENV_NAME }}
+  test:
+    name: test-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: |
@@ -82,44 +68,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
   
-  job-2:
-    name: job-2-${{ needs.set-environment.outputs.ENV_NAME }}
+  sonarcloud-check:
+    name: sonarcloud-check-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'pull_request' && (github.base_ref == 'master' || github.base_ref == 'pre-release') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && github.ref == 'refs/heads/pre-release')
     steps:
       - uses: actions/checkout@v4
 
-  job-3:
-    name: job-3-${{ needs.set-environment.outputs.ENV_NAME }}
+  build:
+    name: build-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'pull_request' && (github.base_ref == 'master' || github.base_ref == 'pre-release') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'push' && github.ref == 'refs/heads/pre-release')
+    if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
-  job-4:
-    name: job-4-${{ needs.set-environment.outputs.ENV_NAME }}
+  package:
+    name: package-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'h2'
     steps:
       - uses: actions/checkout@v4
 
-  job-5:
-    name: job-5-${{ needs.set-environment.outputs.ENV_NAME }}
+  backup:
+    name: backup-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mysql'
     steps:
       - uses: actions/checkout@v4
 
-  job-6:
-    name: job-6-${{ needs.set-environment.outputs.ENV_NAME }}
+  testing:
+    name: testing-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mssql'
@@ -130,16 +111,16 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-  job-7:
-    name: job-7-${{ needs.set-environment.outputs.ENV_NAME }}
+  restore:
+    name: restore-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'oracle'
     steps:
       - uses: actions/checkout@v4
 
-  job-8:
-    name: job-8-${{ needs.set-environment.outputs.ENV_NAME }}
+  deploy:
+    name: deploy-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'postgres'
