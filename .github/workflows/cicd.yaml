@@ -95,7 +95,6 @@ jobs:
     name: backup-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mysql'
     steps:
       - uses: actions/checkout@v4
 
@@ -103,7 +102,6 @@ jobs:
     name: testing-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mssql'
     steps:
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -115,7 +113,6 @@ jobs:
     name: restore-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'oracle'
     steps:
       - uses: actions/checkout@v4
 
@@ -123,6 +120,6 @@ jobs:
     name: deploy-${{ needs.set-environment.outputs.ENV_NAME }}
     needs: [set-environment]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'postgres'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' || github.event_name == 'push' && github.ref == 'refs/heads/pre-release'
     steps:
       - uses: actions/checkout@v4
