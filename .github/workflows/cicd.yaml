@@ -1,0 +1,223 @@
+name: CI-CD
+
+on:
+  push:
+    branches:
+      - dev
+      - pre-release
+      - master
+      - ASIT-485
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - dev
+      - pre-release
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - pre-release
+      job_group:
+        description: 'Which manual checks to run'
+        required: true
+        type: choice
+        options:
+          - none
+          - frontend
+          - sonar
+          - h2
+          - mysql
+          - mssql
+          - oracle
+          - postgres
+
+##############################################################################################################
+### Setup Environment
+##############################################################################################################
+
+jobs:
+  set-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      ENV_NAME: ${{ steps.setenv.outputs.ENV_NAME }}
+    steps:
+      - id: setenv
+        env:
+          DISPATCH_ENV: ${{ github.event.inputs.environment || '' }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_BASE_REF_NAME: ${{ github.base_ref }}
+        run: |
+          echo "Determining environment and image name..."
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            ENV_NAME="$DISPATCH_ENV"
+          elif [[ "$GITHUB_BASE_REF_NAME" == "dev"  || "$GITHUB_REF_NAME" == "dev" ]]; then
+            ENV_NAME=dev
+          elif [[ "$GITHUB_BASE_REF_NAME" == "pre-release" || "$GITHUB_REF_NAME" == "pre-release" ]]; then
+            ENV_NAME=pre-release
+          elif [[ "$GITHUB_REF" == refs/tags/* || "$GITHUB_BASE_REF_NAME" == "master" || "$GITHUB_REF_NAME" == "master" ]]; then
+            ENV_NAME=prod
+          else
+            ENV_NAME=dev
+          fi
+          echo "ENV_NAME=$ENV_NAME"
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_OUTPUT
+
+##############################################################################################################
+### Code Checks (Frontend + Sonar) – ONLY MANUAL
+##############################################################################################################
+
+##############################################################################################################
+### Code Checks (Frontend + Sonar) – auto for selected MR targets, manual otherwise
+##############################################################################################################
+
+  frontend-check:
+    name: frontend-check-${{ needs.set-environment.outputs.ENV_NAME }}
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    # Auto-run when this is a pull_request targeting dev/pre-release/master.
+    # Allow manual run via workflow_dispatch when job_group == 'frontend'.
+    if: ${{ (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'pre-release' || github.base_ref == 'master'))
+           || (github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'frontend') }}
+    steps:
+      - uses: actions/checkout@v4
+      # ... your frontend steps here ...
+  
+  sonarcloud-check:
+    name: sonarcloud-check-${{ needs.set-environment.outputs.ENV_NAME }}
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    # Same logic as frontend: auto-run for PRs targeting dev/pre-release/master,
+    # manual via workflow_dispatch when job_group == 'sonar'.
+    if: ${{ (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'pre-release' || github.base_ref == 'master'))
+           || (github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'sonar') }}
+    steps:
+      - uses: actions/checkout@v4
+      # ... your sonarcloud analysis steps here ...
+
+
+##############################################################################################################
+### Dependency Check – AUTOMATIC
+##############################################################################################################
+
+  dependencies-check:
+    name: dependencies-check-${{ needs.set-environment.outputs.ENV_NAME }}
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+##############################################################################################################
+### Integration Tests (DBs) – ONLY MANUAL
+##############################################################################################################
+
+  h2-database-integration:
+    name: h2-db-integration-check
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'h2'
+    steps:
+      - uses: actions/checkout@v4
+
+  mysql-database-integration:
+    name: mysql-db-integration-check
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mysql'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+  mssql-database-integration:
+    name: mssql-db-integration-check
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'mssql'
+    steps:
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+  oracle-database-integration:
+    name: oracle-db-integration-check
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'oracle'
+    steps:
+      - uses: actions/checkout@v4
+
+  postgres-database-integration:
+    name: postgres-db-integration-check
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job_group == 'postgres'
+    steps:
+      - uses: actions/checkout@v4
+
+##############################################################################################################
+### Endpoint & Service Integration – AUTOMATIC
+##############################################################################################################
+
+  endpoint-integration-test:
+    name: endpoint-integration-test
+    needs: [set-environment, dependencies-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+  service-integration-test:
+    name: service-integration-test
+    needs: [set-environment, dependencies-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+##############################################################################################################
+### Update Plugins Version – AUTOMATIC
+##############################################################################################################
+
+  update-plugins-version:
+    name: update-plugin-version
+    needs: [set-environment, service-integration-test, endpoint-integration-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+##############################################################################################################
+### Artifact Generation – AUTOMATIC
+##############################################################################################################
+
+  generate-artifact:
+    name: generate-artifact
+    needs: [set-environment, update-plugins-version]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    strategy:
+      matrix:
+        APP: [powerbi, tableau, bigquery, sql]
+    steps:
+      - uses: actions/checkout@v4
