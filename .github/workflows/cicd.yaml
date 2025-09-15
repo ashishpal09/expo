@@ -6,7 +6,7 @@ on:
       - dev
       - pre-release
       - main
-      - ASIT-485
+      - master
     tags:
       - '*'
   pull_request:
